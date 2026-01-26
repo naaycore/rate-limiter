@@ -24,7 +24,9 @@ import java.util.stream.Stream;
 public class Util {
     public static String readFile(String path) {
         try {
-            return Files.readString(Paths.get(path), StandardCharsets.UTF_8);
+            return Files
+                    .readString(Paths.get(path), StandardCharsets.UTF_8)
+                    .trim();
         } catch (IOException e) {
             log.error("Error reading file {}", path, e);
             throw new RuntimeException(e);
