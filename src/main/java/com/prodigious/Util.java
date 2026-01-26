@@ -6,6 +6,7 @@ import com.prodigious.Configuration.domain.EndpointConfiguration;
 import com.prodigious.Redis.RedisTokenBucketRateLimiter;
 import com.prodigious.Zookeeper.ZkConfigManager;
 import com.prodigious.ratelimiter.RateLimiter;
+import jakarta.validation.constraints.NotNull;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
@@ -59,17 +60,14 @@ public class Util {
         return deserialize(json);
     }
 
-    private static String bytesToString(byte[] data) {
-        return data == null ? null : new String(data, StandardCharsets.UTF_8);
-    }
-
     public static EndpointConfiguration deserialize(String json) {
-        EndpointConfiguration configuration = null;
+        EndpointConfiguration configuration;
         ObjectMapper mapper = new ObjectMapper();
         try {
             configuration = mapper.readValue(json, EndpointConfiguration.class);
         } catch (JsonProcessingException e) {
             log.error("Error creating Object from string", e);
+            throw new RuntimeException(e);
         }
         return configuration;
     }
@@ -102,6 +100,10 @@ public class Util {
             String configuration = configurations.get(key);
             configManager.createIfNotExistsElseModify(key, configuration);
         }
+    }
+
+    private static String bytesToString(@NotNull  byte[] data) {
+        return new String(data, StandardCharsets.UTF_8);
     }
 
     private static Set<String> retrieveConfigFiles(String dir) {
