@@ -4,12 +4,10 @@ import ch.qos.logback.classic.Logger;
 import com.prodigious.Configuration.domain.EndpointConfiguration;
 import com.prodigious.Configuration.domain.LimitingAlgorithm;
 import com.prodigious.Configuration.domain.TimeUnit;
-import com.prodigious.Redis.RedisTokenBucketRateLimiter;
 import com.prodigious.Zookeeper.ZkConfigManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
@@ -25,6 +23,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class UtilTest {
@@ -250,9 +252,9 @@ class UtilTest {
     void registerEndpointConfigurations() throws Exception {
         ZkConfigManager configManager = Mockito.mock(ZkConfigManager.class);
 
-        Mockito.doNothing().when(configManager).createIfNotExistsElseModify(
-                ArgumentMatchers.anyString(),
-                ArgumentMatchers.any()
+        doNothing().when(configManager).createIfNotExistsElseModify(
+                anyString(),
+                any()
         );
 
         String s = """
@@ -273,8 +275,9 @@ class UtilTest {
                 configManager
         );
 
-        Mockito
-                .verify(configManager, Mockito.times(1))
-                .createIfNotExistsElseModify("hi", s);
+        verify(
+                configManager,
+                Mockito.times(1)
+        ).createIfNotExistsElseModify("hi", s);
     }
 }
