@@ -1,0 +1,13 @@
+endpointConfigurations:
+  - path: "hello"
+    bucketSize: 10
+    refillTokens: 2
+    refillInterval:
+      timeUnit: "SECONDS"
+      value: 2
+  - path: "hi"
+    bucketSize: 40
+    refillTokens: 4
+    refillInterval:
+      timeUnit: "HOURS"
+      value: 1

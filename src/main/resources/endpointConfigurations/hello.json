@@ -1,0 +1,10 @@
+{
+  "path": "hello",
+  "bucketSize": 10,
+  "refillTokens": 2,
+  "refillInterval": {
+    "timeUnit": "MINUTES",
+    "value": 2
+  },
+  "algorithm": "TOKEN_BUCKET"
+}
