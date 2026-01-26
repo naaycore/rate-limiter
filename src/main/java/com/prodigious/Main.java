@@ -12,9 +12,12 @@ import static com.prodigious.Util.retrieveEndpointConfigurations;
 
 @Slf4j
 public class Main {
-    static void main() throws Exception {
+    static void main(String... args) throws Exception {
+        if(args.length < 1){
+            throw new Exception("Endpoint configuration not provided");
+        }
         Map<String, String> configurations =
-                retrieveEndpointConfigurations();
+                retrieveEndpointConfigurations(args[0]);
 
         ZkConfigManager zkConfigManager =
                 ZookeeperConfiguration

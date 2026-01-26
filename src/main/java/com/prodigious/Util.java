@@ -8,12 +8,11 @@ import com.prodigious.Zookeeper.ZkConfigManager;
 import com.prodigious.ratelimiter.RateLimiter;
 import lombok.extern.slf4j.Slf4j;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -24,36 +23,28 @@ import java.util.stream.Stream;
 @Slf4j
 public class Util {
     public static String readFile(String path) {
-        StringBuilder sb = new StringBuilder();
-        try (BufferedReader br = new BufferedReader(new FileReader(path))) {
-            String line;
-
-            while ((line = br.readLine()) != null) {
-                sb.append(line).append(System.lineSeparator());
-            }
-        } catch (FileNotFoundException e) {
-            log.error("File {} not found", path, e);
+        try {
+            return Files.readString(Paths.get(path), StandardCharsets.UTF_8);
         } catch (IOException e) {
             log.error("Error reading file {}", path, e);
+            throw new RuntimeException(e);
         }
-
-        return sb.toString().trim();
     }
 
-    public static Map<String, String> retrieveEndpointConfigurations()
-            throws Exception {
-        String parentDirectory = "src/main/resources/endpointConfigurations";
-
-        Set<String> files = retrieveConfigFiles(parentDirectory);
+    public static Map<String, String> retrieveEndpointConfigurations(
+            String endpointConfigurationDir
+    ) {
+        Set<String> files = retrieveConfigFiles(endpointConfigurationDir);
         Map<String, String> map = new HashMap<>();
 
         for (String file : files) {
-            String endpointConfigString =
-                    readFile(parentDirectory + "/" + file);
+            String endpointConfigString = readFile(endpointConfigurationDir + "/" + file);
 
             String[] part = file.split("\\.");
-            if (part.length != 2) {
-                throw new Exception("Malformed endpoint file name");
+
+            if (part.length != 2 || !part[1].equals("json")) {
+                log.warn("File {} is not a json file, ignoring", file);
+                continue;
             }
             map.put(part[0], endpointConfigString);
         }
@@ -83,7 +74,7 @@ public class Util {
 
     public static RateLimiter createRateLimiter(
             EndpointConfiguration configuration
-    ) throws Exception {
+    ) {
         return switch (configuration.getAlgorithm()) {
             case TOKEN_BUCKET -> new RedisTokenBucketRateLimiter(
                     "ratelimiter.lua",
