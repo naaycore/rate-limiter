@@ -23,6 +23,8 @@ import java.util.stream.Stream;
 
 @Slf4j
 public class Util {
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     public static String readFile(String path) {
         try {
             return Files
@@ -62,9 +64,8 @@ public class Util {
 
     public static EndpointConfiguration deserialize(String json) {
         EndpointConfiguration configuration;
-        ObjectMapper mapper = new ObjectMapper();
         try {
-            configuration = mapper.readValue(json, EndpointConfiguration.class);
+            configuration = OBJECT_MAPPER.readValue(json, EndpointConfiguration.class);
         } catch (JsonProcessingException e) {
             log.error("Error creating Object from string", e);
             throw new RuntimeException(e);
