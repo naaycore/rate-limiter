@@ -197,16 +197,22 @@ public class RequestHandler {
             }
         } catch (HttpProxyException e) {
             if ("Too many requests".equals(e.getMessage())) {
-                try {
-                    writeRateLimitResponse(clientOut);
-                } catch (IOException ioException) {
-                    log.error("Failed to send 429 response", ioException);
+                if (clientOut != null) {
+                    try {
+                        writeRateLimitResponse(clientOut);
+                    } catch (IOException ioException) {
+                        log.error("Failed to send 429 response", ioException);
+                    }
                 }
             }
             log.info(e.getMessage(), e);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private void rateLimitPipe(BufferedReader reader, OutputStream out) {
+        rateLimitPipe(reader, out, null);
     }
 
     private void writeRateLimitResponse(OutputStream clientOut) throws IOException {
