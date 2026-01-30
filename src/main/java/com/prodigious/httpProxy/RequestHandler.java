@@ -85,6 +85,7 @@ public class RequestHandler {
             Thread clientToUpstreamThread = createPipeThread(
                     clientIn,
                     upstreamOut,
+                    clientOut,
                     upServer,
                     "client-to-upstream"
             );
@@ -132,12 +133,13 @@ public class RequestHandler {
     private Thread createPipeThread(
             BufferedReader reader,
             OutputStream outputStream,
+            OutputStream clientOutputStream,
             Socket socket,
             String name
     ) {
         return new Thread(() -> {
             try{
-                rateLimitPipe(reader, outputStream);
+                rateLimitPipe(reader, outputStream, clientOutputStream);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             } finally {
@@ -152,7 +154,8 @@ public class RequestHandler {
 
     private void rateLimitPipe(
             BufferedReader reader,
-            OutputStream out
+            OutputStream out,
+            OutputStream clientOut
     ) {
         try {
             String line;
@@ -193,10 +196,29 @@ public class RequestHandler {
                 out.flush();
             }
         } catch (HttpProxyException e) {
+            if ("Too many requests".equals(e.getMessage())) {
+                try {
+                    writeRateLimitResponse(clientOut);
+                } catch (IOException ioException) {
+                    log.error("Failed to send 429 response", ioException);
+                }
+            }
             log.info(e.getMessage(), e);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private void writeRateLimitResponse(OutputStream clientOut) throws IOException {
+        byte[] bodyBytes = "Too many requests".getBytes(StandardCharsets.UTF_8);
+        String response = "HTTP/1.1 429 Too Many Requests\r\n"
+                + "Content-Type: text/plain; charset=utf-8\r\n"
+                + "Content-Length: " + bodyBytes.length + "\r\n"
+                + "Connection: close\r\n"
+                + "\r\n";
+        clientOut.write(response.getBytes(StandardCharsets.UTF_8));
+        clientOut.write(bodyBytes);
+        clientOut.flush();
     }
 
     private static void pipe(InputStream in, OutputStream out) throws IOException {
