@@ -3,6 +3,8 @@ package com.prodigious;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.prodigious.Configuration.domain.EndpointConfiguration;
+import com.prodigious.Configuration.domain.LeakingBucketEndpointConfiguration;
+import com.prodigious.Configuration.domain.TokenBucketEndpointConfiguration;
 import com.prodigious.Redis.RedisTokenBucketRateLimiter;
 import com.prodigious.Zookeeper.ZkConfigManager;
 import com.prodigious.ratelimiter.RateLimiter;
@@ -65,7 +67,10 @@ public class Util {
     public static EndpointConfiguration deserialize(String json) {
         EndpointConfiguration configuration;
         try {
-            configuration = OBJECT_MAPPER.readValue(json, EndpointConfiguration.class);
+            configuration = OBJECT_MAPPER.readValue(
+                    json,
+                    retrieveConfigClass(json)
+            );
         } catch (JsonProcessingException e) {
             log.error("Error creating Object from string", e);
             throw new RuntimeException(e);
@@ -73,21 +78,35 @@ public class Util {
         return configuration;
     }
 
+    private static Class<? extends EndpointConfiguration> retrieveConfigClass(
+            String json
+    ) {
+        if (json.contains("LEAKING_BUCKET")) {
+            return LeakingBucketEndpointConfiguration.class;
+        }
+
+        return TokenBucketEndpointConfiguration.class;
+    }
+
     public static RateLimiter createRateLimiter(
             EndpointConfiguration configuration
     ) {
         return switch (configuration.getAlgorithm()) {
-            case TOKEN_BUCKET -> new RedisTokenBucketRateLimiter(
-                    "ratelimiter.lua",
-                    configuration.getBucketSize(),
-                    configuration.getRefillTokens(),
-                    configuration
-                            .getRefillInterval()
-                            .getTimeUnit()
-                            .getMs() * configuration
-                            .getRefillInterval()
-                            .getValue()
-            );
+            case TOKEN_BUCKET -> {
+                TokenBucketEndpointConfiguration tokenBucketConfiguration =
+                        (TokenBucketEndpointConfiguration) configuration;
+                yield new RedisTokenBucketRateLimiter(
+                        "luaScripts/ratelimiter_token_bucket.lua",
+                        tokenBucketConfiguration.getBucketSize(),
+                        tokenBucketConfiguration.getRefillTokens(),
+                        tokenBucketConfiguration
+                                .getRefillInterval()
+                                .getTimeUnit()
+                                .getMs() * ((TokenBucketEndpointConfiguration) configuration)
+                                .getRefillInterval()
+                                .getValue()
+                );
+            }
 
             default -> throw new RuntimeException("Not yet implemented");
         };
@@ -103,7 +122,7 @@ public class Util {
         }
     }
 
-    private static String bytesToString(@NotNull  byte[] data) {
+    private static String bytesToString(@NotNull byte[] data) {
         return new String(data, StandardCharsets.UTF_8);
     }
 

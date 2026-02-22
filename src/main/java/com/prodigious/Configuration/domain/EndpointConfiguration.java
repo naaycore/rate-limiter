@@ -11,8 +11,5 @@ import lombok.ToString;
 @ToString
 public class EndpointConfiguration {
     private String path;
-    private int bucketSize;
-    private int refillTokens;
-    private Interval refillInterval;
     private LimitingAlgorithm algorithm;
 }

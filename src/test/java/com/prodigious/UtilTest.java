@@ -4,6 +4,7 @@ import ch.qos.logback.classic.Logger;
 import com.prodigious.Configuration.domain.EndpointConfiguration;
 import com.prodigious.Configuration.domain.LimitingAlgorithm;
 import com.prodigious.Configuration.domain.TimeUnit;
+import com.prodigious.Configuration.domain.TokenBucketEndpointConfiguration;
 import com.prodigious.Zookeeper.ZkConfigManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,7 +45,10 @@ class UtilTest {
     void testReadFile_createsStringOfFilePathContent() {
         String path = "src/test/resources/test.txt";
         String content = Util.readFile(path);
-        assertEquals("This is a test file\nwith a carriage return", content);
+        assertEquals(
+                "This is a test file\nwith a carriage return",
+                content
+        );
     }
 
     @Test
@@ -86,7 +90,8 @@ class UtilTest {
                 "src/test/resources/nonJson");
         String logs = logAppender.getLogs();
 
-        assertTrue(logs.contains("File test.jsn is not a json file, ignoring"));
+        assertTrue(logs.contains(
+                "File test.jsn is not a json file, ignoring"));
         assertEquals(0, map.size());
     }
 
@@ -124,7 +129,8 @@ class UtilTest {
                 """;
         byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
 
-        EndpointConfiguration config = deserialize(bytes);
+        TokenBucketEndpointConfiguration config =
+                (TokenBucketEndpointConfiguration) deserialize(bytes);
 
         assertNotNull(config);
         assertEquals("hello", config.getPath());
@@ -135,7 +141,10 @@ class UtilTest {
                 config.getRefillInterval().getTimeUnit()
         );
         assertEquals(2, config.getRefillInterval().getValue());
-        assertEquals(LimitingAlgorithm.TOKEN_BUCKET, config.getAlgorithm());
+        assertEquals(
+                LimitingAlgorithm.TOKEN_BUCKET,
+                config.getAlgorithm()
+        );
     }
 
     @Test
@@ -165,7 +174,8 @@ class UtilTest {
                 }
                 """;
 
-        EndpointConfiguration config = deserialize(s);
+        TokenBucketEndpointConfiguration config =
+                (TokenBucketEndpointConfiguration) deserialize(s);
 
         assertNotNull(config);
         assertEquals("hello", config.getPath());
@@ -176,7 +186,10 @@ class UtilTest {
                 config.getRefillInterval().getTimeUnit()
         );
         assertEquals(2, config.getRefillInterval().getValue());
-        assertEquals(LimitingAlgorithm.TOKEN_BUCKET, config.getAlgorithm());
+        assertEquals(
+                LimitingAlgorithm.TOKEN_BUCKET,
+                config.getAlgorithm()
+        );
     }
 
     @Test
@@ -200,7 +213,8 @@ class UtilTest {
         );
 
         assertTrue(exception
-                           .getMessage().contains("Unexpected end-of-input: "));
+                           .getMessage()
+                           .contains("Unexpected end-of-input: "));
     }
 
     @Test
@@ -233,7 +247,7 @@ class UtilTest {
                         "timeUnit": "MINUTES",
                         "value": 2
                     },
-                    "algorithm": "LEAKING_BUCKET"
+                    "algorithm": "FIXED_WINDOW_COUNTER"
                 }
                 """;
 
