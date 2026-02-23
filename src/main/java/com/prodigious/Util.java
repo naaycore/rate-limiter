@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.prodigious.Configuration.domain.EndpointConfiguration;
 import com.prodigious.Configuration.domain.LeakingBucketEndpointConfiguration;
 import com.prodigious.Configuration.domain.TokenBucketEndpointConfiguration;
+import com.prodigious.Redis.RedisLeakingBukcetRateLimiter;
 import com.prodigious.Redis.RedisTokenBucketRateLimiter;
 import com.prodigious.Zookeeper.ZkConfigManager;
 import com.prodigious.ratelimiter.RateLimiter;
@@ -92,22 +93,10 @@ public class Util {
             EndpointConfiguration configuration
     ) {
         return switch (configuration.getAlgorithm()) {
-            case TOKEN_BUCKET -> {
-                TokenBucketEndpointConfiguration tokenBucketConfiguration =
-                        (TokenBucketEndpointConfiguration) configuration;
-                yield new RedisTokenBucketRateLimiter(
-                        "luaScripts/ratelimiter_token_bucket.lua",
-                        tokenBucketConfiguration.getBucketSize(),
-                        tokenBucketConfiguration.getRefillTokens(),
-                        tokenBucketConfiguration
-                                .getRefillInterval()
-                                .getTimeUnit()
-                                .getMs() * ((TokenBucketEndpointConfiguration) configuration)
-                                .getRefillInterval()
-                                .getValue()
-                );
-            }
-
+            case TOKEN_BUCKET ->  new RedisTokenBucketRateLimiter(
+                        (TokenBucketEndpointConfiguration) configuration);
+            case LEAKING_BUCKET -> new RedisLeakingBukcetRateLimiter(
+                    (LeakingBucketEndpointConfiguration) configuration);
             default -> throw new RuntimeException("Not yet implemented");
         };
     }

@@ -1,5 +1,6 @@
 package com.prodigious.Redis;
 
+import com.prodigious.Configuration.domain.TokenBucketEndpointConfiguration;
 import com.prodigious.ratelimiter.RateLimiter;
 import com.prodigious.Util;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +13,8 @@ import java.util.List;
 
 @Slf4j
 public class RedisTokenBucketRateLimiter implements RateLimiter {
+    private static final String LUA_SCRIPT_PATH =
+            "luaScripts/ratelimiter_token_bucket.lua";
     private final RedisClient redisClient;
     private final String scriptSha;
 
@@ -19,17 +22,15 @@ public class RedisTokenBucketRateLimiter implements RateLimiter {
     private final long refillTokens;
     private final long refillIntervalMs;
 
-    public RedisTokenBucketRateLimiter(
-            String luaScriptPath,
-            long capacity,
-            long refillTokens,
-            long refillIntervalMs
-    ) {
+    public RedisTokenBucketRateLimiter(TokenBucketEndpointConfiguration configuration) {
         this.redisClient = RedisConfiguration.getInstance().getClient();
-        this.capacity = capacity;
-        this.refillTokens = refillTokens;
-        this.refillIntervalMs = refillIntervalMs;
-        this.scriptSha = redisClient.scriptLoad(Util.readFile(luaScriptPath));
+        this.capacity = configuration.getBucketSize();
+        this.refillTokens = configuration.getRefillTokens();
+        this.refillIntervalMs = configuration
+                .getRefillInterval()
+                .getTimeUnit()
+                .getMs() * configuration.getRefillInterval().getValue();
+        this.scriptSha = redisClient.scriptLoad(Util.readFile(LUA_SCRIPT_PATH));
     }
 
     @Override
@@ -61,13 +62,14 @@ public class RedisTokenBucketRateLimiter implements RateLimiter {
         return allowed != null && allowed == 1L;
     }
 
-    private static Long toLong(Object o){
+    private static Long toLong(Object o) {
         return switch (o) {
             case null -> null;
             case Long l -> l;
             case Integer i -> i.longValue();
             case String s -> Long.parseLong(s);
-            default -> throw new IllegalArgumentException("Unexpected Lua return type: " + o.getClass());
+            default -> throw new IllegalArgumentException(
+                    "Unexpected Lua return type: " + o.getClass());
         };
     }
 }
