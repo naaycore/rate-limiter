@@ -5,8 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.prodigious.Configuration.domain.EndpointConfiguration;
 import com.prodigious.Configuration.domain.LeakingBucketEndpointConfiguration;
 import com.prodigious.Configuration.domain.TokenBucketEndpointConfiguration;
-import com.prodigious.Redis.RedisLeakingBukcetRateLimiter;
-import com.prodigious.Redis.RedisTokenBucketRateLimiter;
+import com.prodigious.ratelimiter.RedisLeakingBucketRateLimiter;
+import com.prodigious.ratelimiter.RedisTokenBucketRateLimiter;
 import com.prodigious.Zookeeper.ZkConfigManager;
 import com.prodigious.ratelimiter.RateLimiter;
 import jakarta.validation.constraints.NotNull;
@@ -95,7 +95,7 @@ public class Util {
         return switch (configuration.getAlgorithm()) {
             case TOKEN_BUCKET ->  new RedisTokenBucketRateLimiter(
                         (TokenBucketEndpointConfiguration) configuration);
-            case LEAKING_BUCKET -> new RedisLeakingBukcetRateLimiter(
+            case LEAKING_BUCKET -> new RedisLeakingBucketRateLimiter(
                     (LeakingBucketEndpointConfiguration) configuration);
             default -> throw new RuntimeException("Not yet implemented");
         };

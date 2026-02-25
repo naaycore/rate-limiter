@@ -1,7 +1,7 @@
-package com.prodigious.Redis;
+package com.prodigious.ratelimiter;
 
 import com.prodigious.Configuration.domain.TokenBucketEndpointConfiguration;
-import com.prodigious.ratelimiter.RateLimiter;
+import com.prodigious.Redis.RedisConfiguration;
 import com.prodigious.Util;
 import lombok.extern.slf4j.Slf4j;
 import redis.clients.jedis.RedisClient;
@@ -12,7 +12,7 @@ import java.util.Collections;
 import java.util.List;
 
 @Slf4j
-public class RedisTokenBucketRateLimiter implements RateLimiter {
+public final class RedisTokenBucketRateLimiter implements RateLimiter{
     private static final String LUA_SCRIPT_PATH =
             "luaScripts/ratelimiter_token_bucket.lua";
     private final RedisClient redisClient;

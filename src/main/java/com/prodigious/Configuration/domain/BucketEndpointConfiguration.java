@@ -5,6 +5,9 @@ import lombok.EqualsAndHashCode;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class BucketEndpointConfiguration extends EndpointConfiguration {
+public sealed class BucketEndpointConfiguration
+        extends EndpointConfiguration
+        permits LeakingBucketEndpointConfiguration,
+                TokenBucketEndpointConfiguration {
     private int bucketSize;
 }

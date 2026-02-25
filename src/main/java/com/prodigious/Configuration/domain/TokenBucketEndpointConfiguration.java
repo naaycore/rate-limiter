@@ -5,7 +5,8 @@ import lombok.EqualsAndHashCode;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class TokenBucketEndpointConfiguration extends BucketEndpointConfiguration {
+public final class TokenBucketEndpointConfiguration
+        extends BucketEndpointConfiguration {
     private int refillTokens;
     private Interval refillInterval;
     private LimitingAlgorithm algorithm;

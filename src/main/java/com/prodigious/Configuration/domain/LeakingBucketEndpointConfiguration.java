@@ -5,6 +5,7 @@ import lombok.EqualsAndHashCode;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class LeakingBucketEndpointConfiguration extends BucketEndpointConfiguration {
+public final class LeakingBucketEndpointConfiguration
+        extends BucketEndpointConfiguration {
     private Interval processingRate;
 }

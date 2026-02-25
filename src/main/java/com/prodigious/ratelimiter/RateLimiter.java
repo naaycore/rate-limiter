@@ -1,5 +1,6 @@
 package com.prodigious.ratelimiter;
 
-public interface RateLimiter {
+public sealed interface RateLimiter permits RedisLeakingBucketRateLimiter,
+                                            RedisTokenBucketRateLimiter {
     boolean allow(String identity, String routPath);
 }

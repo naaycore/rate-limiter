@@ -1,11 +1,10 @@
-package com.prodigious.Redis;
+package com.prodigious.ratelimiter;
 
 import com.prodigious.Configuration.domain.LeakingBucketEndpointConfiguration;
-import com.prodigious.ratelimiter.RateLimiter;
 
-public class RedisLeakingBukcetRateLimiter implements RateLimiter {
+public final class RedisLeakingBucketRateLimiter implements RateLimiter {
 
-    public RedisLeakingBukcetRateLimiter(
+    public RedisLeakingBucketRateLimiter(
             LeakingBucketEndpointConfiguration configuration
     ) {
 
