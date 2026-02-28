@@ -1,6 +1,7 @@
 package com.prodigious.httpProxy;
 
 import com.prodigious.Configuration.domain.RateLimiterConfiguration;
+import com.prodigious.exception.RateLimiterException;
 import com.prodigious.ratelimiter.RateLimiter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -206,7 +207,16 @@ public class RequestHandler {
                 }
             }
             log.info(e.getMessage(), e);
-        } catch (IOException e) {
+        } catch (RateLimiterException e){
+            if (clientOut != null) {
+                try {
+                    writeRateLimiterMissingResponse(clientOut);
+                } catch (IOException ioException) {
+                    log.error("Failed to send 500 response", ioException);
+                }
+            }
+            log.error(e.getMessage(), e);
+        }catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
@@ -227,6 +237,20 @@ public class RequestHandler {
         clientOut.flush();
     }
 
+    private void writeRateLimiterMissingResponse(OutputStream clientOut)
+            throws IOException {
+        byte[] bodyBytes = "Rate limiter configuration not found"
+                .getBytes(StandardCharsets.UTF_8);
+        String response = "HTTP/1.1 500 Internal Server Error\r\n"
+                + "Content-Type: text/plain; charset=utf-8\r\n"
+                + "Content-Length: " + bodyBytes.length + "\r\n"
+                + "Connection: close\r\n"
+                + "\r\n";
+        clientOut.write(response.getBytes(StandardCharsets.UTF_8));
+        clientOut.write(bodyBytes);
+        clientOut.flush();
+    }
+
     private static void pipe(InputStream in, OutputStream out) throws IOException {
         byte[] buffer = new byte[8192];
         int read;
@@ -237,8 +261,11 @@ public class RequestHandler {
     }
 
     private void rateLimit(String sessionId, String path)
-            throws HttpProxyException {
+            throws HttpProxyException, RateLimiterException {
         RateLimiter rateLimiter = endpointConfigMap.get(path);
+        if(rateLimiter == null){
+            throw new RateLimiterException("Rate limiter not found");
+        }
         if(!rateLimiter.allow(sessionId, path)){
             throw new HttpProxyException("Too many requests");
         }
