@@ -1,4 +1,4 @@
-package com.prodigious.exception;
+package com.prodigious.ratelimiter;
 
 public class RateLimiterException extends Exception{
     public RateLimiterException(String msg){

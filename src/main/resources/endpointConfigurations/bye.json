@@ -1,9 +1,0 @@
-{
-  "path": "bye",
-  "bucketSize": 10,
-  "processingRate": {
-    "timeUnit": "NANOSECONDS",
-    "value": 10
-  },
-  "algorithm": "LEAKING_BUCKET"
-}
