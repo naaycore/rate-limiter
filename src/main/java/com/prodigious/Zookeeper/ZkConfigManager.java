@@ -4,29 +4,31 @@ import com.prodigious.Configuration.domain.RateLimiterConfiguration;
 import com.prodigious.Util;
 import com.prodigious.ratelimiter.RateLimiter;
 import jakarta.validation.constraints.NotNull;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.data.Stat;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 public class ZkConfigManager implements Closeable {
     private final CuratorFramework client;
     private final String basePath;
     private final PathChildrenCache cache;
 
     private final ConcurrentHashMap<String, RateLimiter> config;
-    private final List<PathChildrenCacheListener> listeners;
 
     private volatile boolean started = false;
     private final boolean clientIsManaged;
@@ -53,7 +55,6 @@ public class ZkConfigManager implements Closeable {
             @NotNull(message = "BasePath cannot be null") String basePath,
             boolean clientIsManaged
     ) {
-        this.listeners = new CopyOnWriteArrayList<>();
         this.config = RateLimiterConfiguration
                 .getInstance()
                 .getEndpointRateLimiterMap();
@@ -65,10 +66,6 @@ public class ZkConfigManager implements Closeable {
 
     public Map<String, RateLimiter> getConfig() {
         return config;
-    }
-
-    public Map<String, RateLimiter> getAll() {
-        return Collections.unmodifiableMap(config);
     }
 
     public void create(String childPath, String val) throws Exception {
@@ -87,18 +84,44 @@ public class ZkConfigManager implements Closeable {
 
     public void createIfNotExistsElseModify(String childPath, String val)
             throws Exception {
-        String c = bytesToString((byte[]) client
-                .getData()
-                .forPath(genFullPath(childPath)));
+        String fullPath = genFullPath(childPath);
+        byte[] updatedValue = val.getBytes(StandardCharsets.UTF_8);
 
-        if (c.equals(val)) {
-            return;
+
+        for (int attempts = 0; attempts < 3; attempts++) {
+            Stat stat = client.checkExists().forPath(fullPath);
+
+            if (stat == null) {
+                try {
+                    create(childPath, val);
+                    return;
+                } catch (KeeperException.NodeExistsException e) {
+                    log.warn(
+                            "path created by a concurrent writer between check exists and create operations");
+                }
+            } else {
+                byte[] current = client.getData().forPath(fullPath);
+                if (Arrays.equals(current, updatedValue)) {
+                    return;
+                }
+                try {
+                    modifyValue(childPath, val);
+                    return;
+                } catch (KeeperException.NoNodeException e) {
+                    log.warn(
+                            "Unable to complete path modification of path {}",
+                            fullPath
+                    );
+                }
+            }
         }
-
-        create(childPath, val);
+        throw new IllegalStateException(
+                "Failed to update zookeeper node due to concurrent writes: "
+                        + fullPath);
     }
 
-    public void modifyValue(@NotNull String key, String val) throws Exception {
+    public void modifyValue(@NotNull String key, String val)
+            throws Exception {
         String fullPath = genFullPath(key);
 
         synchronized (client) {
@@ -106,7 +129,6 @@ public class ZkConfigManager implements Closeable {
                     fullPath,
                     val.getBytes(StandardCharsets.UTF_8)
             );
-
         }
     }
 
@@ -116,7 +138,8 @@ public class ZkConfigManager implements Closeable {
         }
         ensureBasePath();
         loadInitialConfig();
-
+        cache.start(PathChildrenCache.StartMode.POST_INITIALIZED_EVENT);
+        started = true;
     }
 
     private String genFullPath(String childPath) {
@@ -125,18 +148,6 @@ public class ZkConfigManager implements Closeable {
 
     public void addListener(PathChildrenCacheListener listener) {
         cache.getListenable().addListener(listener);
-    }
-
-    private String extractKey(String fullPath) {
-        if (!fullPath.startsWith(basePath)) {
-            return fullPath;
-        }
-
-        String relative = fullPath.substring(basePath.length());
-        if (relative.startsWith("/")) {
-            relative = relative.substring(1);
-        }
-        return relative;
     }
 
     private void ensureBasePath() throws Exception {
@@ -150,12 +161,11 @@ public class ZkConfigManager implements Closeable {
         for (String child : children) {
             String fullPath = basePath + "/" + child;
             byte[] data = client.getData().forPath(fullPath);
-            config.put(child, Util.createRateLimiter(Util.deserialize(data)));
+            config.put(
+                    child,
+                    Util.createRateLimiter(Util.deserialize(data))
+            );
         }
-    }
-
-    private static String bytesToString(byte[] data) {
-        return data == null ? null : new String(data, StandardCharsets.UTF_8);
     }
 
     private static CuratorFramework createDefaultClient(

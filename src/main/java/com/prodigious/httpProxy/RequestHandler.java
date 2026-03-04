@@ -2,6 +2,7 @@ package com.prodigious.httpProxy;
 
 import com.prodigious.Configuration.domain.RateLimiterConfiguration;
 import com.prodigious.ratelimiter.RateLimiter;
+import com.prodigious.ratelimiter.RateLimiterException;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.BufferedReader;
@@ -41,15 +42,15 @@ public class RequestHandler {
         }
     }
 
-    public void stopHandler(){
+    public void stopHandler() {
         log.info("Server terminating...");
         running = false;
-        try{
-            if(serverSocket != null){
+        try {
+            if (serverSocket != null) {
                 serverSocket.close();
                 log.info("Server terminated");
             }
-        }catch (IOException e){
+        } catch (IOException e) {
             log.error("Error while attempting to shutdown server", e);
         }
     }
@@ -86,17 +87,14 @@ public class RequestHandler {
                     clientIn,
                     upstreamOut,
                     clientOut,
-                    upServer,
-                    "client-to-upstream"
+                    upServer
             );
 
             Thread upstreamToClientThread = createPipeThread(
                     upstreamIn,
                     clientOut,
-                    client,
-                    "upstream-to-client"
+                    client
             );
-
             clientToUpstreamThread.start();
             upstreamToClientThread.start();
 
@@ -112,44 +110,69 @@ public class RequestHandler {
     private Thread createPipeThread(
             InputStream in,
             OutputStream out,
-            Socket socket,
-            String name
+            Socket socket
     ) {
-        return new Thread(() -> {
-            try {
-                pipe(in, out);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            } finally {
-                try {
-                    socket.shutdownOutput();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
+        return Thread.ofVirtual().unstarted(
+                () -> {
+                    try {
+                        pipe(in, out);
+                    } catch (IOException e) {
+                        if (e instanceof SocketException) {
+                            log.debug(
+                                    "Pipe thread ended due to socket close: {}",
+                                    e.getMessage()
+                            );
+                        } else {
+                            log.error(
+                                    "Pipe thread ended with I/O error",
+                                    e
+                            );
+                        }
+                    } finally {
+                        shutdownOutputQuietly(socket);
+                    }
                 }
-            }
-        }, name);
+        );
     }
 
     private Thread createPipeThread(
             BufferedReader reader,
             OutputStream outputStream,
             OutputStream clientOutputStream,
-            Socket socket,
-            String name
+            Socket socket
     ) {
-        return new Thread(() -> {
-            try{
-                rateLimitPipe(reader, outputStream, clientOutputStream);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            } finally {
-                try {
-                    socket.shutdownOutput();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
+        return Thread.ofVirtual().unstarted(
+                () -> {
+                    try {
+                        rateLimitPipe(
+                                reader,
+                                outputStream,
+                                clientOutputStream
+                        );
+                    } catch (Exception e) {
+                        log.error(
+                                "Rate-limited pipe thread ended with error",
+                                e
+                        );
+                    } finally {
+                        shutdownOutputQuietly(socket);
+                    }
                 }
-            }
-        }, name);
+        );
+    }
+
+    private void shutdownOutputQuietly(Socket socket) {
+        if (socket == null || socket.isClosed() || socket.isOutputShutdown()) {
+            return;
+        }
+        try {
+            socket.shutdownOutput();
+        } catch (IOException e) {
+            log.debug(
+                    "Socket output already closed during shutdown: {}",
+                    e.getMessage()
+            );
+        }
     }
 
     private void rateLimitPipe(
@@ -167,15 +190,16 @@ public class RequestHandler {
                 if (line == null) {
                     break;
                 }
-                if(i == 0){
+                if (i == 0) {
                     String[] parts = line.split(" ");
-                    if(parts.length != 3){
-                        throw new HttpProxyException("Malformed request line");
+                    if (parts.length != 3) {
+                        throw new HttpProxyException(
+                                "Malformed request line");
                     }
                     int qIndex = parts[1].indexOf("?");
-                    if(qIndex == -1){
+                    if (qIndex == -1) {
                         path = parts[1].substring(1);
-                    }else{
+                    } else {
                         path = parts[1].substring(1, qIndex);
                     }
 
@@ -201,11 +225,23 @@ public class RequestHandler {
                     try {
                         writeRateLimitResponse(clientOut);
                     } catch (IOException ioException) {
-                        log.error("Failed to send 429 response", ioException);
+                        log.error(
+                                "Failed to send 429 response",
+                                ioException
+                        );
                     }
                 }
             }
             log.info(e.getMessage(), e);
+        } catch (RateLimiterException e) {
+            if (clientOut != null) {
+                try {
+                    writeRateLimiterMissingResponse(clientOut);
+                } catch (IOException ioException) {
+                    log.error("Failed to send 500 response", ioException);
+                }
+            }
+            log.error(e.getMessage(), e);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -215,7 +251,8 @@ public class RequestHandler {
         rateLimitPipe(reader, out, null);
     }
 
-    private void writeRateLimitResponse(OutputStream clientOut) throws IOException {
+    private void writeRateLimitResponse(OutputStream clientOut)
+            throws IOException {
         byte[] bodyBytes = "Too many requests".getBytes(StandardCharsets.UTF_8);
         String response = "HTTP/1.1 429 Too Many Requests\r\n"
                 + "Content-Type: text/plain; charset=utf-8\r\n"
@@ -227,7 +264,22 @@ public class RequestHandler {
         clientOut.flush();
     }
 
-    private static void pipe(InputStream in, OutputStream out) throws IOException {
+    private void writeRateLimiterMissingResponse(OutputStream clientOut)
+            throws IOException {
+        byte[] bodyBytes = "Rate limiter configuration not found"
+                .getBytes(StandardCharsets.UTF_8);
+        String response = "HTTP/1.1 500 Internal Server Error\r\n"
+                + "Content-Type: text/plain; charset=utf-8\r\n"
+                + "Content-Length: " + bodyBytes.length + "\r\n"
+                + "Connection: close\r\n"
+                + "\r\n";
+        clientOut.write(response.getBytes(StandardCharsets.UTF_8));
+        clientOut.write(bodyBytes);
+        clientOut.flush();
+    }
+
+    private static void pipe(InputStream in, OutputStream out)
+            throws IOException {
         byte[] buffer = new byte[8192];
         int read;
         while ((read = in.read(buffer)) != -1) {
@@ -237,9 +289,12 @@ public class RequestHandler {
     }
 
     private void rateLimit(String sessionId, String path)
-            throws HttpProxyException {
+            throws HttpProxyException, RateLimiterException {
         RateLimiter rateLimiter = endpointConfigMap.get(path);
-        if(!rateLimiter.allow(sessionId, path)){
+        if (rateLimiter == null) {
+            throw new RateLimiterException("Rate limiter not found");
+        }
+        if (!rateLimiter.allow(sessionId, path)) {
             throw new HttpProxyException("Too many requests");
         }
     }

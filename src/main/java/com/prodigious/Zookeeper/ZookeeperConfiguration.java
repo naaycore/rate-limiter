@@ -2,19 +2,16 @@ package com.prodigious.Zookeeper;
 
 import com.prodigious.Zookeeper.listeners.EndpointConfigListener;
 
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+@Getter
 @Slf4j
 public class ZookeeperConfiguration {
     private static ZookeeperConfiguration instance;
     private final ZkConfigManager configManager;
 
     private ZookeeperConfiguration() {
-//        ConcurrentHashMap<String, RateLimiter> configurationMap =
-//                RateLimiterConfiguration
-//                        .getInstance()
-//                        .getEndpointRateLimiterMap();
-
         String connectionString = "localhost:2181";
         String basePath = "/prodigious/rate-limiter";
 
@@ -46,7 +43,4 @@ public class ZookeeperConfiguration {
         return instance;
     }
 
-    public ZkConfigManager getConfigManager() {
-        return configManager;
-    }
 }

@@ -9,10 +9,8 @@ import lombok.ToString;
 @AllArgsConstructor
 @NoArgsConstructor
 @ToString
-public class EndpointConfiguration {
+public sealed class EndpointConfiguration
+        permits BucketEndpointConfiguration {
     private String path;
-    private int bucketSize;
-    private int refillTokens;
-    private Interval refillInterval;
     private LimitingAlgorithm algorithm;
 }
